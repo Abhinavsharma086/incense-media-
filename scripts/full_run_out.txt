@@ -1,0 +1,28 @@
+STDOUT:
+=== LEADS FOR VIBHUR / 6283834316 ===
+Total leads found: 1
+Lead ID: 138a01e2-e2d7-4749-8af7-88c42d8a5f97 | Name: Vibhur Chauhan | Phone: 6283834316 | Category: manufacturer | Source: Google | Status: new | Owner: Anand Singh (undefined) | isDuplicate: false
+   Notes: [Nov 13, 2026, 10:44 AM by Anand Singh]: Status: NEW | Remark: Batate Hai | Next Followup: 2026-11-13
+---
+[13/11/2026, 10:43:22] Added: Stall Plan
+---
+[Merged from Duplicate Lead (Manually Added - Vibhur Chauhan)]:
+[Nov 13, 2026, 11:10 AM by Vimla Yadav]: Status: NEW | Remark: call karenge | Next Followup: 2026-11-13
+---
+[11/13/2026, 11:09:33 AM] Added: stall
+
+=== CHECK ANAND PASSWORD ===
+Anand user found: Anand Singh 7878437633 anand.singh@incensemedia.in
+Anand hash: $2b$10$aywVV2SgtKXIcIgtA8zL6.k7EoTFV/trH.8WXig1O4J0eU/7qWjNG
+Password "Incense@123": match = true
+Password "emp123": match = false
+Password "Admin@123": match = false
+Password "super123": match = false
+Password "123456": match = false
+Password "7878437633": match = false
+Password "password": match = false
+Password "anand123": match = false
+Password "Anand@123": match = false
+Password "12345678": match = false
+
+STDERR:

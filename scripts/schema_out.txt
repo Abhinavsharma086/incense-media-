@@ -1,0 +1,778 @@
+=== PRISMA SCHEMA ===
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  firstName          String
+  lastName           String
+  email              String   @unique
+  password           String
+  phone              String?
+  isActive           Boolean  @default(true)
+  isSuspended        Boolean  @default(false)
+  twoFactorEnabled   Boolean  @default(false)
+  twoFactorSecret    String?
+  forcePasswordReset Boolean  @default(false)
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  roleId             String
+  role               Role     @relation(fields: [roleId], references: [id])
+  leads              Lead[]   @relation("LeadOwner")
+  deals              Deal[]   @relation("DealOwner")
+  campaigns          MediaCampaign[] @relation("CampaignOwner")
+  
+  // Unit & Lead Assignment Relations
+  unitEmployees      UnitEmployee[]
+  assignmentLogsFrom AssignmentLog[] @relation("AssignmentLogFrom")
+  assignmentLogsTo   AssignmentLog[] @relation("AssignmentLogTo")
+  assignmentLogsBy   AssignmentLog[] @relation("AssignmentLogBy")
+
+  // Super Admin & Granular RBAC Relations
+  userPermissions    UserPermission[]
+  adminPermissions   AdminPermission[]
+  loginHistories     LoginHistory[]
+  sessions           UserSession[]
+  activityLogs       ActivityLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique // Super Admin, Admin, Sales Manager, Sales Executive, Account Manager
+  description String?
+  permissions Permission[] @relation("RolePermissions")
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "manage_users", "view_leads", "manage_leads"
+  description String?
+  roles       Role[]   @relation("RolePermissions")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Unit {
+  id              String           @id @default(uuid())
+  name            String           @unique // e.g., "Sales Unit A", "Telecaller Team"
+  description     String?          @db.Text
+  employees       UnitEmployee[]
+  assignmentRules AssignmentRule[]
+  leads           Lead[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model UnitEmployee {
+  id             String    @id @default(uuid())
+  unitId         String
+  unit           Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  employeeId     String
+  employee       User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  maxCapacity    Int       @default(50) // Max active lead capacity
+  isActive       Boolean   @default(true) // Active for auto assignment
+  lastAssignedAt DateTime? // For Round Robin calculation
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([unitId, employeeId])
+}
+
+model AssignmentRule {
+  id               String   @id @default(uuid())
+  unitId           String
+  unit             Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  ruleType         String   @default("round_robin") // "round_robin" | "workload"
+  isSourceMatching Boolean  @default(false)
+  leadSourceFilter String?  // e.g. "meta", "website", "manual"
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model AssignmentLog {
+  id             String   @id @default(uuid())
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromEmployeeId String?
+  fromEmployee   User?    @relation("AssignmentLogFrom", fields: [fromEmployeeId], references: [id], onDelete: SetNull)
+  toEmployeeId   String?
+  toEmployee     User?    @relation("AssignmentLogTo", fields: [toEmployeeId], references: [id], onDelete: SetNull)
+  assignedById   String?
+  assignedBy     User?    @relation("AssignmentLogBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  reason         String?  @db.Text
+  timestamp      DateTime @default(now())
+}
+
+model Lead {
+  id                String    @id @default(uuid())
+  fullName          String
+  email             String?
+  phone             String
+  companyName       String?
+  website           String?
+  city              String?
+  industry          String?
+  source            String    @default("manual") // meta, website, manual, etc.
+  campaign          String?
+  status            String    @default("new") // new, contacted, qualified, proposal, negotiation, won, lost
+  interestedService String?
+  category          String?   @default("general") // publication, subscription, exhibition, etc.
+  budget            String?
+  priority          String    @default("medium") // low, medium, high
+  leadScore         Int       @default(0)
+  dealValue         Float?
+  notes             String?   @db.Text
+  lastContactDate   DateTime?
+  nextFollowUpDate  DateTime?
+  ownerId           String?
+  owner             User?     @relation("LeadOwner", fields: [ownerId], references: [id])
+  unitId            String?
+  unit              Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  assignedAt        DateTime?
+  assignedById      String?
+  activities        LeadActivity[]
+  followUps         FollowUp[]
+  deals             Deal[]
+  assignmentLogs    AssignmentLog[]
+
+  // Meta Lead Ads Integration Fields
+  leadgenId         String?   @unique
+  metaPageId        String?
+  metaFormId        String?
+  adId              String?
+  adName            String?
+  adsetId           String?
+  adsetName         String?
+  campaignId        String?
+  metaData          String?   @db.Text // Raw JSON field key-values from Meta
+  isDuplicate       Boolean   @default(false)
+  duplicateFlaggedAt DateTime?
+
+  // Extended Relations
+  statusHistory     LeadStatusHistory[]
+  notesList         LeadNote[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model MetaAccount {
+  id             String     @id @default(uuid())
+  facebookUserId String     @unique
+  name           String
+  email          String?
+  accessToken    String     @db.Text // Encrypted long-lived user access token
+  tokenExpiresAt DateTime?
+  pages          MetaPage[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model MetaPage {
+  id              String     @id @default(uuid())
+  metaAccountId   String
+  metaAccount     MetaAccount @relation(fields: [metaAccountId], references: [id], onDelete: Cascade)
+  pageId          String     @unique
+  pageName        String
+  pageAccessToken String     @db.Text // Encrypted page access token
+  category        String?
+  isSubscribed    Boolean    @default(false) // Webhook leadgen subscription
+  leadForms       LeadForm[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model LeadForm {
+  id           String    @id @default(uuid())
+  metaPageId   String
+  metaPage     MetaPage  @relation(fields: [metaPageId], references: [id], onDelete: Cascade)
+  formId       String    @unique
+  formName     String
+  status       String    @default("ACTIVE")
+  leadsCount   Int       @default(0)
+  lastSyncedAt DateTime?
+  createdTime  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model LeadNote {
+  id        String   @id @default(uuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  authorName String  @default("Admin User")
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model LeadStatusHistory {
+  id           String   @id @default(uuid())
+  leadId       String
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromStatus   String
+  toStatus     String
+  changedByName String  @default("System User")
+  userId       String?
+  createdAt    DateTime @default(now())
+}
+
+model LeadActivity {
+  id          String   @id @default(uuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        String   // call, email, whatsapp, status_change, note, meeting
+  description String   @db.Text
+  userId      String?
+  createdAt   DateTime @default(now())
+}
+
+model FollowUp {
+  id          String   @id @default(uuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type        String   // call, email, meeting
+  scheduledAt DateTime
+  status      String   @default("pending") // pending, completed, missed
+  priority    String   @default("medium") // low, medium, high
+  reminderAt  DateTime?
+  notes       String?  @db.Text
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Deal {
+  id                  String   @id @default(uuid())
+  name                String
+  value               Float
+  stage               String   @default("new") // new, qualified, meeting, proposal, negotiation, won, lost
+  probability         Int      @default(0) // 0-100
+  expectedCloseDate   DateTime?
+  services            String?
+  notes               String?  @db.Text
+  leadId              String
+  lead                Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedToId        String?
+  assignedTo          User?    @relation("DealOwner", fields: [assignedToId], references: [id])
+  activities          DealActivity[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model DealActivity {
+  id          String   @id @default(uuid())
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type        String
+  description String   @db.Text
+  userId      String?
+  createdAt   DateTime @default(now())
+}
+
+model LeadScoreRule {
+  id          String   @id @default(uuid())
+  action      String   @unique // e.g., "website_enquiry", "whatsapp_reply"
+  points      Int
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MediaCampaign {
+  id               String   @id @default(uuid())
+  name             String
+  clientName       String
+  platform         String   // Meta, Google, LinkedIn, etc.
+  service          String
+  startDate        DateTime
+  endDate          DateTime?
+  budget           Float
+  adSpend          Float    @default(0)
+  objective        String
+  status           String   @default("active") // active, paused, completed
+  notes            String?  @db.Text
+  
+  // Tracking Metrics
+  impressions      Int      @default(0)
+  reach            Int      @default(0)
+  clicks           Int      @default(0)
+  leadsGenerated   Int      @default(0)
+  qualifiedLeads   Int      @default(0)
+  conversions      Int      @default(0)
+  revenue          Float    @default(0)
+
+  // Relations
+  assignedToId     String?
+  assignedTo       User?    @relation("CampaignOwner", fields: [assignedToId], references: [id])
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ----------------------------------------------------
+// ACCOUNTING & BUSY INTEGRATION MODELS
+// ----------------------------------------------------
+
+model AccountingSetting {
+  id                  String   @id @default(uuid())
+  busyApiUrl          String?
+  busyApiKey          String?  @db.Text
+  busyCompanyName     String?
+  companyGstin        String?  @default("08AJCPG7964J1ZU")
+  panNo               String?  @default("AJCPG7964J")
+  companyPhone        String?  @default("9549404000")
+  companyEmail        String?  @default("info@incensemedia.in")
+  companyState        String   @default("Rajasthan")
+  companyAddress      String?  @db.Text
+  bankName            String?  @default("INDUSIND BANK")
+  bankAccountNo       String?  @default("201003249032")
+  bankIfsc            String?  @default("INDB0001491")
+  bankBranch          String?  @default("MANSAROVAR JAIPUR")
+  upiNumber           String?  @default("9549404000")
+  tdsDeclaration      String?  @default("TDS to be deducted @ 1% in section 194(C), if applicable")
+  jurisdictionText    String?  @default("Subject to 'Jaipur' Jurisdiction only.")
+  invoicePrefix       String   @default("2025-26/")
+  proformaPrefix      String   @default("PI/2025-26/")
+  salesVoucherType    String   @default("Sales")
+  proformaVoucherType  String   @default("Proforma Invoice")
+  receiptVoucherType  String   @default("Receipt")
+  termsAndConditions  String?  @db.Text
+
+  // Default Item & HSN Settings
+  defaultHsnSac       String   @default("998363")
+  defaultGstRate      Float    @default(5)
+  defaultUnit         String   @default("Units")
+
+  // Invoice & Proforma Display Preferences
+  showHsnColumn       Boolean  @default(true)
+  showUnitColumn      Boolean  @default(true)
+  showDiscountColumn  Boolean  @default(true)
+  enableAutoBusySync  Boolean  @default(true)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Party {
+  id               String   @id @default(uuid())
+  name             String
+  busyCode         String?  @unique
+  gstin            String?
+  state            String   @default("Rajasthan")
+  address          String?  @db.Text
+  city             String?
+  pincode          String?
+  phone            String?
+  email            String?
+  creditDays       Int      @default(30)
+  openingBalance   Float    @default(0)
+  currentBalance   Float    @default(0)
+  busySyncStatus   String   @default("PENDING") // PENDING, SYNCED, FAILED
+  busySyncError    String?  @db.Text
+  invoices         Invoice[]
+  proformas        ProformaInvoice[]
+  payments         PaymentReceipt[]
+  reminders        PaymentReminder[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ItemCategory {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?          @db.Text
+  type        String           @default("BOTH") // PRODUCT, SERVICE, BOTH
+  items       AccountingItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model AccountingItem {
+  id               String        @id @default(uuid())
+  name             String
+  type             String        @default("PRODUCT") // PRODUCT, SERVICE
+  sku              String?       @unique
+  busyCode         String?       @unique
+  categoryId       String?
+  category         ItemCategory? @relation(fields: [categoryId], references: [id])
+  hsnSac           String?
+  unit             String        @default("Units")
+  purchasePrice    Float         @default(0)
+  salesRate        Float         @default(0)
+  gstPercentage    Float         @default(18) // 0, 5, 12, 18, 28
+  openingStock     Float         @default(0)
+  currentStock     Float         @default(0)
+  description      String?       @db.Text
+  imageUrl         String?       @db.Text
+  isActive         Boolean       @default(true)
+  busySyncStatus   String        @default("PENDING")
+  busySyncError    String?       @db.Text
+  invoiceItems     InvoiceItem[]
+  proformaItems    ProformaItem[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model NumberSeries {
+  id             String   @id @default(uuid())
+  type           String   @unique // INVOICE, PROFORMA, RECEIPT
+  prefix         String
+  financialYear  String   @default("25-26")
+  currentSeq     Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Invoice {
+  id                 String   @id @default(uuid())
+  invoiceNumber      String   @unique
+  series             String   @default("INV")
+  financialYear      String   @default("25-26")
+  invoiceDate        DateTime @default(now())
+  dueDate            DateTime?
+  partyId            String
+  party              Party    @relation(fields: [partyId], references: [id])
+  placeOfSupply      String
+  isInterstate       Boolean  @default(false)
+  
+  // Shipping (Ship To) Details
+  shipToName         String?
+  shipToAddress      String?  @db.Text
+  shipToGstin        String?
+  shipToState        String?
+
+  // Transport & Metadata Details
+  reverseCharge      String   @default("N")
+  grRrNo             String?
+  transportName      String?
+  vehicleNo          String?
+  station            String?
+  ewayBillNo         String?
+
+  subtotal           Float    @default(0)
+  discountAmount     Float    @default(0)
+  taxableAmount      Float    @default(0)
+  cgstAmount         Float    @default(0)
+  sgstAmount         Float    @default(0)
+  igstAmount         Float    @default(0)
+  freightCharges     Float    @default(0)
+  packingCharges     Float    @default(0)
+  roundOff           Float    @default(0)
+  grandTotal         Float    @default(0)
+  amountInWords      String?  @db.Text
+  paidAmount         Float    @default(0)
+  balanceAmount      Float    @default(0)
+  
+  status             String   @default("UNPAID") // UNPAID, PARTIAL, PAID, OVERDUE, CANCELLED
+  terms              String?  @db.Text
+  notes              String?  @db.Text
+  
+  // BUSY Integration
+  busyVoucherNo      String?
+  busySyncStatus     String   @default("PENDING") // PENDING, SYNCED, FAILED
+  busySyncError      String?  @db.Text
+  busySyncedAt       DateTime?
+
+  // Relations
+  items              InvoiceItem[]
+  payments           PaymentReceipt[]
+  reminders          PaymentReminder[]
+  convertedFromPiId  String?  @unique
+  convertedFromPi    ProformaInvoice? @relation("PiToInvoice", fields: [convertedFromPiId], references: [id])
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model InvoiceItem {
+  id                 String          @id @default(uuid())
+  invoiceId          String
+  invoice            Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemId             String?
+  item               AccountingItem? @relation(fields: [itemId], references: [id])
+  itemName           String
+  description        String?         @db.Text // Item sub-description / narration line
+  hsnSac             String?
+  unit               String          @default("Pcs")
+  quantity           Float           @default(1)
+  rate               Float           @default(0)
+  discountPct        Float           @default(0)
+  discountAmt        Float           @default(0)
+  priceAfterDiscount Float           @default(0)
+  taxableAmount      Float           @default(0)
+  gstPercentage      Float           @default(18)
+  cgstAmount         Float           @default(0)
+  sgstAmount         Float           @default(0)
+  igstAmount         Float           @default(0)
+  totalAmount        Float           @default(0)
+  createdAt          DateTime        @default(now())
+}
+
+model ProformaInvoice {
+  id                 String   @id @default(uuid())
+  proformaNumber     String   @unique
+  series             String   @default("PI")
+  financialYear      String   @default("25-26")
+  proformaDate       DateTime @default(now())
+  validUntil         DateTime?
+  partyId            String
+  party              Party    @relation(fields: [partyId], references: [id])
+  placeOfSupply      String
+  isInterstate       Boolean  @default(false)
+  
+  // Shipping (Ship To) Details
+  shipToName         String?
+  shipToAddress      String?  @db.Text
+  shipToGstin        String?
+  shipToState        String?
+
+  // Transport & Metadata Details
+  reverseCharge      String   @default("N")
+  grRrNo             String?
+  transportName      String?
+  vehicleNo          String?
+  station            String?
+  ewayBillNo         String?
+
+  subtotal           Float    @default(0)
+  discountAmount     Float    @default(0)
+  taxableAmount      Float    @default(0)
+  cgstAmount         Float    @default(0)
+  sgstAmount         Float    @default(0)
+  igstAmount         Float    @default(0)
+  freightCharges     Float    @default(0)
+  packingCharges     Float    @default(0)
+  roundOff           Float    @default(0)
+  grandTotal         Float    @default(0)
+  amountInWords      String?  @db.Text
+  advanceReceived    Float    @default(0)
+
+  status             String   @default("DRAFT") // DRAFT, SENT, APPROVED, CONVERTED, EXPIRED, CANCELLED
+  terms              String?  @db.Text
+  notes              String?  @db.Text
+
+  // BUSY Integration
+  busyVoucherNo      String?
+  busySyncStatus     String   @default("PENDING") // PENDING, SYNCED, FAILED
+  busySyncError      String?  @db.Text
+  busySyncedAt       DateTime?
+
+  // Relations
+  items              ProformaItem[]
+  convertedInvoice   Invoice? @relation("PiToInvoice")
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ProformaItem {
+  id                 String          @id @default(uuid())
+  proformaInvoiceId  String
+  proformaInvoice    ProformaInvoice @relation(fields: [proformaInvoiceId], references: [id], onDelete: Cascade)
+  itemId             String?
+  item               AccountingItem? @relation(fields: [itemId], references: [id])
+  itemName           String
+  description        String?         @db.Text
+  hsnSac             String?
+  unit               String          @default("Pcs")
+  quantity           Float           @default(1)
+  rate               Float           @default(0)
+  discountPct        Float           @default(0)
+  discountAmt        Float           @default(0)
+  priceAfterDiscount Float           @default(0)
+  taxableAmount      Float           @default(0)
+  gstPercentage      Float           @default(18)
+  cgstAmount         Float           @default(0)
+  sgstAmount         Float           @default(0)
+  igstAmount         Float           @default(0)
+  totalAmount        Float           @default(0)
+  createdAt          DateTime        @default(now())
+}
+
+model PaymentReceipt {
+  id                 String   @id @default(uuid())
+  receiptNumber      String   @unique
+  receiptDate        DateTime @default(now())
+  invoiceId          String
+  invoice            Invoice  @relation(fields: [invoiceId], references: [id])
+  partyId            String
+  party              Party    @relation(fields: [partyId], references: [id])
+  amount             Float
+  paymentMode        String   @default("Bank Transfer") // Cash, Bank Transfer, UPI, Cheque
+  referenceNo        String?
+  notes              String?  @db.Text
+  
+  // BUSY Integration
+  busyVoucherNo      String?
+  busySyncStatus     String   @default("PENDING")
+  busySyncError      String?  @db.Text
+  busySyncedAt       DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model BusySyncLog {
+  id            String   @id @default(uuid())
+  entityType    String   // INVOICE, PROFORMA, PARTY, ITEM, PAYMENT
+  entityId      String
+  entityRefNo   String?
+  action        String   // PUSH_VOUCHER, PUSH_MASTER, SYNC_MASTER
+  requestPayload String? @db.Text
+  busyResponse  String?  @db.Text
+  status        String   // SUCCESS, FAILED, PENDING
+  errorMessage  String?  @db.Text
+  syncedAt      DateTime @default(now())
+}
+
+// ==========================================
+// SUPER ADMIN & RBAC EXTENSION MODELS
+// ==========================================
+
+model UserPermission {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String   // e.g. "users", "products", "orders", "payments", "reports", "settings", "leads", "deals", "campaigns", "units", "meta"
+  canView   Boolean  @default(true)
+  canCreate Boolean  @default(true)
+  canEdit   Boolean  @default(true)
+  canDelete Boolean  @default(true)
+  canExport Boolean  @default(true)
+  canApprove Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, module])
+}
+
+model LoginHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress  String?
+  userAgent  String?
+  deviceType String?  // e.g. "Desktop", "Mobile", "Tablet"
+  status     String   @default("SUCCESS") // SUCCESS, FAILED, BLOCKED
+  failReason String?
+  createdAt  DateTime @default(now())
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @db.Text
+  ipAddress String?
+  userAgent String?
+  isValid   Boolean  @default(true)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action     String   // e.g. ADMIN_CREATED, PERMISSION_CHANGED, ADMIN_SUSPENDED, SETTING_UPDATED, DATA_OVERRIDE
+  module     String
+  targetId   String?
+  targetType String?
+  oldValue   String?  @db.Text
+  newValue   String?  @db.Text
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+}
+
+model GlobalSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  category    String   @default("general") // site_config, payment, email_sms, feature_flags, maintenance, security
+  description String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AdminPermission {
+  id            String   @id @default(uuid())
+  adminId       String
+  admin         User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  permissionKey String   // e.g., "users.view", "users.create", "users.edit", "users.delete", "orders.export", "payments.approve"
+  isAllowed     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([adminId, permissionKey])
+}
+
+model PermissionTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  permissions String   @db.Text // JSON array of permission keys allowed in this template
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+
+
+model LeadCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  label     String
+  icon      String?  @default("🏷️")
+  color     String?  @default("purple")
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+model PaymentReminder {
+  id             String    @id @default(uuid())
+  invoiceId      String
+  partyId        String?
+  employeeId     String?
+  employeeName   String?
+  reminderDate   DateTime
+  timeLimit      DateTime?
+  expectedAmount Float?    @default(0)
+  priority       String    @default("medium")
+  reminderType   String    @default("call")
+  status         String    @default("pending")
+  notes          String?   @db.Text
+  actionTaken    String?   @db.Text
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  invoice        Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  party          Party?    @relation(fields: [partyId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([partyId])
+  @@index([employeeId])
+  @@index([reminderDate])
+  @@index([status])
+}
+

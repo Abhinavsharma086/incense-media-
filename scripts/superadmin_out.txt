@@ -1,0 +1,177 @@
+=== SUPERADMIN ROUTES ===
+import { Router } from 'express';
+import { authenticate, requireSuperAdmin } from '../middleware/auth.middleware';
+import {
+  getDashboardStats,
+  getAdmins,
+  createAdmin,
+  updateAdmin,
+  toggleAdminSuspension,
+  resetAdminPassword,
+  forceLogoutAdmin,
+  deleteAdmin,
+  getAdminLoginHistory,
+  getAdminPermissions,
+  updateAdminPermissions,
+  getGlobalSettings,
+  updateGlobalSettings,
+  getActivityLogs,
+  getAdminPermissionKeys,
+  updateAdminPermissionKeys,
+  copyAdminPermissions,
+  getPermissionTemplates,
+  createPermissionTemplate,
+  applyPermissionTemplate,
+  getMyPermissions,
+} from '../controllers/superadmin.controller';
+
+const router = Router();
+
+// Apply authentication to all routes
+router.use(authenticate);
+
+// Current user permissions endpoint (accessible by any logged in admin/user)
+router.get('/my-permissions', getMyPermissions);
+
+// Require Super Admin for remaining management routes
+router.use(requireSuperAdmin);
+
+// Dashboard Overview & Stats
+router.get('/dashboard/stats', getDashboardStats);
+
+// Admin Management (CRUD)
+router.get('/admins', getAdmins);
+router.post('/admins', createAdmin);
+router.put('/admins/:id', updateAdmin);
+router.patch('/admins/:id/suspend', toggleAdminSuspension);
+router.post('/admins/:id/reset-password', resetAdminPassword);
+router.post('/admins/:id/force-logout', forceLogoutAdmin);
+router.delete('/admins/:id', deleteAdmin);
+router.get('/admins/:id/history', getAdminLoginHistory);
+
+// Granular Permissions (Module matrix & Function keys)
+router.get('/admins/:id/permissions', getAdminPermissions);
+router.put('/admins/:id/permissions', updateAdminPermissions);
+router.get('/admins/:id/permission-keys', getAdminPermissionKeys);
+router.put('/admins/:id/permission-keys', updateAdminPermissionKeys);
+router.post('/admins/copy-permissions', copyAdminPermissions);
+router.post('/admins/:id/apply-template', applyPermissionTemplate);
+
+// Permission Templates
+router.get('/permission-templates', getPermissionTemplates);
+router.post('/permission-templates', createPermissionTemplate);
+
+// Global Settings & Feature Flags
+router.get('/settings', getGlobalSettings);
+router.put('/settings', updateGlobalSettings);
+
+// Activity & Audit Logs
+router.get('/logs', getActivityLogs);
+
+export default router;
+
+=== CHECK PASSWORD IN SUPERADMIN CONTROLLER ===
+17:     const totalAdmins = await prisma.user.count();
+18:     const activeAdmins = await prisma.user.count({ where: { isActive: true, isSuspended: false } });
+19:     const suspendedAdmins = await prisma.user.count({ where: { isSuspended: true } });
+49:         totalAdmins,
+50:         activeAdmins,
+51:         suspendedAdmins,
+71: export const getAdmins = async (req: Request, res: Response): Promise<void> => {
+140:           { name: 'Super Admin', description: 'Full system privileges' },
+141:           { name: 'Admin', description: 'Standard administrator' },
+165: export const createAdmin = async (req: Request, res: Response): Promise<void> => {
+167:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+168:     const { firstName, lastName, email, password, phone, roleId } = req.body;
+170:     if (!firstName || !lastName || !email || !password) {
+171:       res.status(400).json({ message: 'First name, last name, email, and password are required' });
+175:     const existingUser = await prisma.user.findUnique({ where: { email } });
+176:     if (existingUser) {
+177:       res.status(400).json({ message: 'User with this email already exists' });
+193:         where: { OR: [{ name: 'Admin' }, { name: 'Super Admin' }] }
+197:           data: { name: 'Admin', description: 'Administrator Role' }
+204:     const hashedPassword = await bcrypt.hash(password, 10);
+205:     const newAdmin = await prisma.user.create({
+210:         password: hashedPassword,
+219:     // Default permission setup for the new Admin across standard modules
+228:               userId: newAdmin.id,
+234:             userId: newAdmin.id,
+249:                 adminId: newAdmin.id,
+255:               adminId: newAdmin.id,
+266:     await recordActivityLog(superAdminId, 'ADMIN_CREATED', 'admins', newAdmin.id, 'User', null, { email, role: newAdmin.role?.name || 'Admin' }, req);
+268:     res.status(201).json({ message: 'Admin account created successfully', admin: newAdmin });
+270:     console.error('Error in createAdmin:', error);
+275: export const updateAdmin = async (req: Request, res: Response): Promise<void> => {
+277:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+283:       res.status(404).json({ message: 'Admin account not found' });
+287:     const updatedAdmin = await prisma.user.update({
+301:     await recordActivityLog(superAdminId, 'ADMIN_UPDATED', 'admins', id, 'User', existing, updatedAdmin, req);
+303:     res.json({ message: 'Admin account updated successfully', admin: updatedAdmin });
+309: export const toggleAdminSuspension = async (req: Request, res: Response): Promise<void> => {
+311:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+321:       res.status(404).json({ message: 'Admin not found' });
+325:     if (admin.role.name === 'Super Admin') {
+326:       res.status(400).json({ message: 'Cannot suspend a Super Admin account' });
+346:       superAdminId,
+350:       'User',
+357:       message: suspend ? 'Admin account suspended and sessions terminated' : 'Admin account restored to active status',
+365: export const resetAdminPassword = async (req: Request, res: Response): Promise<void> => {
+367:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+372:       res.status(400).json({ message: 'New password must be at least 6 characters long' });
+380:         password: hashedPassword,
+390:     await recordActivityLog(superAdminId, 'PASSWORD_RESET', 'admins', id, 'User', null, { forcedReset: forcePasswordReset }, req);
+392:     res.json({ message: 'Admin password reset successfully. Active sessions terminated.' });
+394:     res.status(500).json({ message: 'Failed to reset admin password', error: error.message });
+398: export const forceLogoutAdmin = async (req: Request, res: Response): Promise<void> => {
+400:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+408:     await recordActivityLog(superAdminId, 'FORCE_LOGOUT', 'admins', id, 'User', null, { status: 'SESSIONS_TERMINATED' }, req);
+416: export const deleteAdmin = async (req: Request, res: Response): Promise<void> => {
+418:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+420:     const { superAdminPassword } = req.body;
+422:     if (!superAdminPassword) {
+423:       res.status(400).json({ message: 'Super Admin password re-entry is required for deletion confirmation' });
+427:     const superAdmin = await prisma.user.findUnique({ where: { id: superAdminId } });
+428:     if (superAdmin && superAdmin.password) {
+429:       const isValidPass = await bcrypt.compare(superAdminPassword, superAdmin.password);
+431:         res.status(401).json({ message: 'Invalid Super Admin password confirmation' });
+436:     const targetUser = await prisma.user.findUnique({
+441:     if (!targetUser) {
+442:       res.status(404).json({ message: 'Admin not found' });
+446:     if (targetUser.role.name === 'Super Admin') {
+447:       res.status(400).json({ message: 'Super Admin account cannot be deleted' });
+453:     await recordActivityLog(superAdminId, 'ADMIN_DELETED', 'admins', id, 'User', { email: targetUser.email }, null, req);
+455:     res.json({ message: 'Admin account deleted permanently' });
+461: export const getAdminLoginHistory = async (req: Request, res: Response): Promise<void> => {
+485: export const getAdminPermissions = async (req: Request, res: Response): Promise<void> => {
+525: export const updateAdminPermissions = async (req: Request, res: Response): Promise<void> => {
+527:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+565:     await recordActivityLog(superAdminId, 'PERMISSIONS_UPDATED', 'permissions', id, 'UserPermission', null, permissions, req);
+590:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+603:           update: { value: item.value?.toString(), category: item.category, description: item.description, updatedBy: superAdminId },
+604:           create: { key: item.key, value: item.value?.toString() || '', category: item.category || 'general', description: item.description, updatedBy: superAdminId },
+612:           update: { value: (value as any)?.toString(), updatedBy: superAdminId },
+613:           create: { key, value: (value as any)?.toString() || '', updatedBy: superAdminId },
+619:     await recordActivityLog(superAdminId, 'GLOBAL_SETTINGS_UPDATED', 'settings', 'global', 'GlobalSetting', null, settings, req);
+690: export const getAdminPermissionKeys = async (req: Request, res: Response): Promise<void> => {
+709: export const updateAdminPermissionKeys = async (req: Request, res: Response): Promise<void> => {
+711:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+720:     const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+756:       // Also update legacy UserPermission for backward compatibility
+793:         superAdminId,
+797:         'AdminPermission',
+799:         { targetAdmin: targetUser?.email, changes: changesLogged },
+810: export const copyAdminPermissions = async (req: Request, res: Response): Promise<void> => {
+812:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+813:     const { fromAdminId, toAdminId } = req.body;
+815:     if (!fromAdminId || !toAdminId) {
+816:       res.status(400).json({ message: 'Source (fromAdminId) and target (toAdminId) Admin IDs are required' });
+821:       where: { adminId: fromAdminId },
+828:             adminId: toAdminId,
+834:           adminId: toAdminId,
+841:     await recordActivityLog(superAdminId, 'PERMISSIONS_COPIED', 'permissions', toAdminId, 'AdminPermission', { fromAdminId }, { toAdminId }, req);
+890:     const superAdminId = (req as any).user?.id || 'super-admin-root';
+932:     await recordActivityLog(superAdminId, 'TEMPLATE_APPLIED', 'permissions', id, 'PermissionTemplate', null, { templateName: template.name }, req);
+949:     // Super Admin gets ALL permissions unconditionally
+950:     if (user.roleName === 'Super Admin') {
+959:       res.json({ isSuperAdmin: true, permissions: all });
+969:     res.json({ isSuperAdmin: false, permissions: allowedKeys });

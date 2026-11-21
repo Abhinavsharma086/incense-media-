@@ -1,0 +1,45 @@
+=== UNIT ROUTES ===
+import { Router } from 'express';
+import {
+  getUnits,
+  getUnitById,
+  createUnit,
+  updateUnit,
+  deleteUnit,
+  addEmployeeToUnit,
+  updateUnitEmployee,
+  removeEmployeeFromUnit,
+  setAssignmentRule,
+  getEmployeesForAssignment,
+  syncEmployee,
+} from '../controllers/unit.controller';
+
+const router = Router();
+
+// Employees for assignment dropdowns
+router.get('/employees/available', getEmployeesForAssignment);
+router.post('/employees/sync', syncEmployee);
+
+
+// Units CRUD
+router.get('/', getUnits);
+router.get('/:id', getUnitById);
+router.post('/', createUnit);
+router.put('/:id', updateUnit);
+router.delete('/:id', deleteUnit);
+
+// Unit Employees
+router.post('/:unitId/employees', addEmployeeToUnit);
+router.put('/employees/:id', updateUnitEmployee);
+router.delete('/employees/:id', removeEmployeeFromUnit);
+
+// Unit Rules
+router.post('/:unitId/rule', setAssignmentRule);
+
+export default router;
+
+
+=== UNIT CONTROLLER (CHECK reset-password) ===
+Contains resetPassword: false
+Line 289:             password: defaultPasswordHash,
+Line 354:         password: defaultPasswordHash,

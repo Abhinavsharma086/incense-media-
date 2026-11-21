@@ -1,0 +1,7 @@
+=== AUTH & USER CONTROLLERS ===
+/var/www/crm-backend/src/controllers/auth.controller.ts
+/var/www/crm-backend/src/controllers/lead.controller.ts
+/var/www/crm-backend/src/controllers/leadMerge.controller.ts
+/var/www/crm-backend/src/middleware/auth.middleware.ts
+/var/www/crm-backend/src/routes/auth.routes.ts
+/var/www/crm-backend/src/routes/lead.routes.ts

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Incense Media CRM - WhatsApp Single Window Controller",
+  "version": "1.0.1",
+  "description": "Automatically reuses a single WhatsApp Web / WhatsApp Business tab for all CRM leads, eliminating duplicate tabs.",
+  "permissions": [
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "*://web.whatsapp.com/*",
+    "*://business.whatsapp.com/*",
+    "*://api.whatsapp.com/*",
+    "*://wa.me/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Incense Media CRM WhatsApp Controller Active"
+  }
+}

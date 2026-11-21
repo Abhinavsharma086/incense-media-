@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Lead Hub - Incense Media CRM</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background: #0c1317; color: #e9edef; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Top Bar */
+    header {
+      background: #202c33;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #2a3942;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .wa-icon {
+      width: 36px; height: 36px; background: #25d366; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; fill: white;
+    }
+    .header-title h1 { font-size: 16px; font-weight: 700; color: #e9edef; }
+    .header-title p { font-size: 11px; color: #8696a0; }
+    .header-right { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #8696a0; }
+    .badge {
+      background: rgba(37, 211, 102, 0.15); color: #25d366; font-size: 11px;
+      font-weight: 700; padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(37, 211, 102, 0.3);
+    }
+
+    /* Main Layout */
+    .container { display: flex; flex: 1; height: calc(100vh - 61px); overflow: hidden; }
+
+    /* Sidebar (Leads List) */
+    .sidebar {
+      width: 360px;
+      background: #111b21;
+      border-right: 1px solid #2a3942;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .search-box {
+      padding: 12px 14px;
+      background: #111b21;
+      border-bottom: 1px solid #222e35;
+    }
+    .search-input-wrap {
+      background: #202c33;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .search-input-wrap input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e9edef;
+      font-size: 13px;
+      width: 100%;
+    }
+    .search-input-wrap input::placeholder { color: #8696a0; }
+    .leads-count {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #8696a0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #0c1317;
+      border-bottom: 1px solid #222e35;
+      display: flex;
+      justify-content: space-between;
+    }
+    .leads-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .lead-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #222e35;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .lead-item:hover { background: #202c33; }
+    .lead-item.active { background: #2a3942; border-left: 4px solid #25d366; }
+    .lead-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #202c33; color: #25d366; font-weight: 700; font-size: 14px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      border: 1px solid #2a3942;
+    }
+    .lead-info { flex: 1; min-width: 0; }
+    .lead-name { font-size: 14px; font-weight: 600; color: #e9edef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lead-company { font-size: 12px; color: #8696a0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .lead-phone { font-size: 11px; color: #00a884; font-family: monospace; margin-top: 2px; }
+    .lead-status { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; text-transform: uppercase; }
+
+    /* Content Area */
+    .content {
+      flex: 1;
+      background: #0b141a;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 24px 32px;
+    }
+    .card {
+      background: #111b21;
+      border: 1px solid #222e35;
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .lead-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #222e35;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .lead-title h2 { font-size: 20px; font-weight: 700; color: #e9edef; }
+    .lead-title p { font-size: 13px; color: #8696a0; margin-top: 3px; }
+    .lead-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .meta-box {
+      background: #182229;
+      border: 1px solid #222e35;
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .meta-label { font-size: 11px; color: #8696a0; text-transform: uppercase; font-weight: 600; }
+    .meta-value { font-size: 14px; color: #e9edef; font-weight: 600; margin-top: 3px; font-family: monospace; }
+
+    /* Templates */
+    .templates-section { margin-bottom: 20px; }
+    .section-title { font-size: 12px; font-weight: 700; color: #8696a0; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
+    .template-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .chip {
+      background: #202c33;
+      color: #d1d7db;
+      border: 1px solid #2a3942;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-weight: 500;
+    }
+    .chip:hover { background: #2a3942; color: #fff; border-color: #25d366; }
+    .chip.active { background: rgba(37, 211, 102, 0.2); color: #25d366; border-color: #25d366; font-weight: 700; }
+
+    /* Message Box */
+    .message-textarea {
+      width: 100%;
+      min-height: 120px;
+      background: #202c33;
+      border: 1px solid #2a3942;
+      border-radius: 10px;
+      padding: 14px;
+      color: #e9edef;
+      font-size: 14px;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      margin-bottom: 20px;
+    }
+    .message-textarea:focus { border-color: #00a884; }
+
+    /* Action Buttons */
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn {
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn-wa-web { background: #00a884; color: #111b21; }
+    .btn-wa-web:hover { background: #02906f; }
+    .btn-wa-app { background: #202c33; color: #25d366; border: 1px solid #25d366; }
+    .btn-wa-app:hover { background: rgba(37,211,102,0.1); }
+    .btn-copy { background: #202c33; color: #e9edef; border: 1px solid #2a3942; }
+    .btn-copy:hover { background: #2a3942; }
+
+    .nav-bar {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid #222e35;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn-nav {
+      background: #202c33;
+      color: #8696a0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #2a3942;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-nav:hover:not(:disabled) { background: #2a3942; color: #e9edef; }
+    .btn-nav:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #00a884;
+      color: #111b21;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      display: none;
+      z-index: 999;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #8696a0;
+    }
+    .empty-state svg { width: 64px; height: 64px; fill: #2a3942; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header>
+    <div class="header-left">
+      <div class="wa-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+      </div>
+      <div class="header-title">
+        <h1>Incense Media - WhatsApp Single Window Hub</h1>
+        <p>All leads contacts in one persistent window &bull; No duplicate tabs</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="badge" id="activeLeadCountBadge">0 Leads</span>
+      <span>Single Window Active</span>
+    </div>
+  </header>
+
+  <!-- Container -->
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="search-box">
+        <div class="search-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696a0" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by name, phone, company...">
+        </div>
+      </div>
+      <div class="leads-count">
+        <span>Assigned Leads</span>
+        <span id="filteredCount">0</span>
+      </div>
+      <div class="leads-list" id="leadsList">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content" id="mainContent">
+      <div class="card">
+        <div class="lead-header">
+          <div class="lead-title">
+            <h2 id="activeLeadName">Select a Lead</h2>
+            <p id="activeLeadCompany">Incense Media Inquiry</p>
+          </div>
+          <span class="badge" id="activeLeadStatus">Active</span>
+        </div>
+
+        <div class="lead-meta-grid">
+          <div class="meta-box">
+            <div class="meta-label">Phone Number</div>
+            <div class="meta-value" id="activeLeadPhone">-</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-label">Category / Vertical</div>
+            <div class="meta-value" id="activeLeadCategory">-</div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-label">City</div>
+            <div class="meta-value" id="activeLeadCity">-</div>
+          </div>
+        </div>
+
+        <!-- Templates -->
+        <div class="templates-section">
+          <div class="section-title">Message Templates</div>
+          <div class="template-chips">
+            <button class="chip active" onclick="applyTemplate('greeting')">👋 First Greeting</button>
+            <button class="chip" onclick="applyTemplate('followup')">📄 Brochure Follow-up</button>
+            <button class="chip" onclick="applyTemplate('expo')">🎪 Expo Invitation</button>
+            <button class="chip" onclick="applyTemplate('reminder')">⏰ Payment / Call Reminder</button>
+          </div>
+          <textarea class="message-textarea" id="messageText" placeholder="Type WhatsApp message here..."></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-row">
+          <button class="btn btn-wa-web" onclick="sendWhatsAppWeb()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+            Chat on WhatsApp Web
+          </button>
+          <button class="btn btn-wa-app" onclick="sendWhatsAppApp()">
+            💻 WhatsApp Desktop App (1-Window)
+          </button>
+          <button class="btn btn-copy" onclick="copyContact()">
+            📋 Copy Number & Message
+          </button>
+        </div>
+
+        <!-- Navigation bar -->
+        <div class="nav-bar">
+          <button class="btn-nav" id="btnPrev" onclick="navigateLead(-1)">⬅️ Previous Lead</button>
+          <span style="font-size:12px;color:#8696a0" id="navIndex">Lead 1 of 1</span>
+          <button class="btn-nav" id="btnNext" onclick="navigateLead(1)">Next Lead ➡️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast">Copied to clipboard!</div>
+
+  <script>
+    var allLeads = [];
+    var filteredLeads = [];
+    var activeIndex = 0;
+    var activeLead = null;
+
+    function formatPhone(p) {
+      if (!p) return '';
+      var d = String(p).replace(/[^0-9]/g, '');
+      if (d.startsWith('0') && d.length === 11) d = d.slice(1);
+      if (d.length === 10) return '91' + d;
+      return d;
+    }
+
+    function showToast(msg) {
+      var t = document.getElementById('toast');
+      t.innerText = msg;
+      t.style.display = 'block';
+      setTimeout(function() { t.style.display = 'none'; }, 2500);
+    }
+
+    function loadLeadsFromCache() {
+      try {
+        var raw = localStorage.getItem('sys_cached_leads');
+        if (raw) {
+          allLeads = JSON.parse(raw);
+        }
+      } catch(e) {}
+    }
+
+    function init() {
+      loadLeadsFromCache();
+
+      // Check URL query params for initial lead
+      var params = new URLSearchParams(window.location.search);
+      var qPhone = params.get('phone') || '';
+      var qName = params.get('name') || '';
+      var qCompany = params.get('company') || '';
+      var qText = params.get('text') || '';
+
+      if (qPhone) {
+        var cleanQ = formatPhone(qPhone);
+        // Find existing or add as first
+        var found = allLeads.find(function(l) { return formatPhone(l.phone) === cleanQ; });
+        if (!found) {
+          allLeads.unshift({
+            id: 'temp-' + Date.now(),
+            fullName: qName || 'Customer',
+            companyName: qCompany || '',
+            phone: cleanQ,
+            status: 'contacted'
+          });
+        }
+      }
+
+      filteredLeads = allLeads.slice();
+      renderLeadsList();
+
+      if (filteredLeads.length > 0) {
+        selectLeadByIndex(0, qText);
+      }
+
+      // Setup BroadcastChannel for real-time lead dispatching from CRM
+      if (window.BroadcastChannel) {
+        var channel = new BroadcastChannel('im_wa_channel');
+        channel.onmessage = function(event) {
+          if (!event.data) return;
+          if (event.data.type === 'SYNC_LEADS' && Array.isArray(event.data.leads)) {
+            allLeads = event.data.leads;
+            filteredLeads = allLeads.slice();
+            renderLeadsList();
+            return;
+          }
+          if (event.data.lead) {
+            handleIncomingLead(event.data.lead, event.data.text);
+          }
+        };
+      }
+
+      // Search input handler
+      document.getElementById('searchInput').addEventListener('input', function(e) {
+        var q = e.target.value.toLowerCase().trim();
+        if (!q) {
+          filteredLeads = allLeads.slice();
+        } else {
+          filteredLeads = allLeads.filter(function(l) {
+            var name = (l.fullName || l.name || '').toLowerCase();
+            var phone = String(l.phone || '');
+            var comp = (l.companyName || l.company || '').toLowerCase();
+            return name.includes(q) || phone.includes(q) || comp.includes(q);
+          });
+        }
+        renderLeadsList();
+      });
+    }
+
+    function handleIncomingLead(lead, initialText) {
+      var clean = formatPhone(lead.phone);
+      var idx = allLeads.findIndex(function(l) { return formatPhone(l.phone) === clean; });
+      if (idx === -1) {
+        allLeads.unshift(lead);
+        idx = 0;
+      } else {
+        allLeads[idx] = Object.assign({}, allLeads[idx], lead);
+      }
+      filteredLeads = allLeads.slice();
+      renderLeadsList();
+      selectLeadByIndex(idx, initialText);
+      showToast('Lead selected: ' + (lead.fullName || lead.name || 'Customer'));
+      try {
+        window.focus();
+      } catch(e) {}
+    }
+
+    function renderLeadsList() {
+      var list = document.getElementById('leadsList');
+      document.getElementById('filteredCount').innerText = filteredLeads.length;
+      document.getElementById('activeLeadCountBadge').innerText = filteredLeads.length + ' Leads';
+
+      if (filteredLeads.length === 0) {
+        list.innerHTML = '<div class="empty-state"><p>No leads found</p></div>';
+        return;
+      }
+
+      var html = '';
+      filteredLeads.forEach(function(l, i) {
+        var isActive = (i === activeIndex);
+        var initial = (l.fullName || l.name || 'C').charAt(0).toUpperCase();
+        var phone = formatPhone(l.phone);
+        html += '<div class="lead-item ' + (isActive ? 'active' : '') + '" onclick="selectLeadByIndex(' + i + ')">';
+        html += '  <div class="lead-avatar">' + initial + '</div>';
+        html += '  <div class="lead-info">';
+        html += '    <div class="lead-name">' + (l.fullName || l.name || 'Customer') + '</div>';
+        html += '    <div class="lead-company">' + (l.companyName || l.company || 'Incense Media') + '</div>';
+        html += '    <div class="lead-phone">+' + phone + '</div>';
+        html += '  </div>';
+        html += '</div>';
+      });
+      list.innerHTML = html;
+    }
+
+    function selectLeadByIndex(idx, customText) {
+      if (idx < 0 || idx >= filteredLeads.length) return;
+      activeIndex = idx;
+      activeLead = filteredLeads[idx];
+
+      renderLeadsList();
+
+      // Update Active Lead Card
+      document.getElementById('activeLeadName').innerText = activeLead.fullName || activeLead.name || 'Customer';
+      document.getElementById('activeLeadCompany').innerText = activeLead.companyName || activeLead.company || 'Inquiry Contact';
+      document.getElementById('activeLeadPhone').innerText = '+' + formatPhone(activeLead.phone);
+      document.getElementById('activeLeadCategory').innerText = activeLead.category || 'General Inquiry';
+      document.getElementById('activeLeadCity').innerText = activeLead.city || activeLead.state || 'India';
+      document.getElementById('activeLeadStatus').innerText = (activeLead.status || 'Active').toUpperCase();
+
+      document.getElementById('navIndex').innerText = 'Lead ' + (idx + 1) + ' of ' + filteredLeads.length;
+      document.getElementById('btnPrev').disabled = (idx === 0);
+      document.getElementById('btnNext').disabled = (idx === filteredLeads.length - 1);
+
+      if (customText) {
+        document.getElementById('messageText').value = customText;
+      } else {
+        applyTemplate('greeting');
+      }
+    }
+
+    function applyTemplate(type) {
+      if (!activeLead) return;
+      var name = activeLead.fullName || activeLead.name || 'Sir/Madam';
+      var comp = activeLead.companyName || activeLead.company || 'Incense Media';
+      var txt = '';
+
+      if (type === 'greeting') {
+        txt = "Hello " + name + ", I am connecting with you regarding your inquiry with " + comp + ". How may we assist you today?";
+      } else if (type === 'followup') {
+        txt = "Hello " + name + ", following up regarding our previous discussion with " + comp + ". Please let me know if you would like me to share our catalogue and price details.";
+      } else if (type === 'expo') {
+        txt = "Hello " + name + ", we cordially invite you to visit our upcoming Expo. Let us know if you would like visitor registration details!";
+      } else if (type === 'reminder') {
+        txt = "Hello " + name + ", this is a gentle reminder regarding our scheduled follow-up with " + comp + ". Please let us know a convenient time to speak.";
+      }
+
+      document.getElementById('messageText').value = txt;
+
+      // Update chip styling
+      var chips = document.querySelectorAll('.chip');
+      chips.forEach(function(c) { c.classList.remove('active'); });
+      if (event && event.target && event.target.classList.contains('chip')) {
+        event.target.classList.add('active');
+      }
+    }
+
+    var waWebWinRef = null;
+
+    function sendWhatsAppWeb() {
+      if (!activeLead) return;
+      var phone = formatPhone(activeLead.phone);
+      var msg = encodeURIComponent(document.getElementById('messageText').value || '');
+      var url = "https://web.whatsapp.com/send?phone=" + phone + (msg ? "&text=" + msg : "");
+      
+      // Copy to clipboard as automatic fallback
+      copyContact();
+
+      try {
+        if (waWebWinRef && !waWebWinRef.closed) {
+          waWebWinRef.location.href = url;
+          waWebWinRef.focus();
+          showToast('Switched WhatsApp Web to +' + phone);
+          return;
+        }
+      } catch(e) {}
+
+      // Open in a standard dedicated tab
+      waWebWinRef = window.open(url, 'IM_WhatsApp_Web_Chat');
+      if (waWebWinRef) {
+        try { waWebWinRef.focus(); } catch(e) {}
+      }
+      showToast('Opening WhatsApp Web for +' + phone);
+    }
+
+    function sendWhatsAppApp() {
+      if (!activeLead) return;
+      var phone = formatPhone(activeLead.phone);
+      var msg = encodeURIComponent(document.getElementById('messageText').value || '');
+      var appUrl = "whatsapp://send?phone=" + phone + (msg ? "&text=" + msg : "");
+
+      copyContact();
+
+      // Trigger desktop app protocol
+      var a = document.createElement('a');
+      a.href = appUrl;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() { document.body.removeChild(a); }, 300);
+      showToast('Opening Desktop App in single window!');
+    }
+
+    function copyContact() {
+      if (!activeLead) return;
+      var phone = '+' + formatPhone(activeLead.phone);
+      var msg = document.getElementById('messageText').value || '';
+      var fullText = "Phone: " + phone + "\n" + msg;
+      navigator.clipboard.writeText(fullText).then(function() {
+        showToast('Copied +' + formatPhone(activeLead.phone) + ' & Message!');
+      });
+    }
+
+    function navigateLead(step) {
+      selectLeadByIndex(activeIndex + step);
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
